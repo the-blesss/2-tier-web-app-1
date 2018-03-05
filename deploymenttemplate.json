@@ -1,0 +1,108 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+  },
+  "variables": {
+    "storageAccountName": "mbtestappstor1",
+    "location": "[resourceGroup().location]",
+    "addressPrefix": "10.50.0.0/16",
+    "subnet1Name": "MB-DMZ-Subnet",
+    "subnet2Name": "MB-Server-Subnet",
+    "subnet1Prefix": "10.50.1.0/24",
+    "subnet2Prefix": "10.50.2.0/24",
+    "storageAccountType": "Standard_LRS",
+    "virtualNetworkName": "MB-EastUS-VNET1",
+    "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]",
+    "subnet1Ref": "[concat(variables('vnetID'),'/subnets/',variables('subnet1Name'))]",
+    "subnet2Ref": "[concat(variables('vnetID'),'/subnets/',variables('subnet2Name'))]",
+    "apiVersion": "2015-06-15",
+    "sharedBaseUrl" : "https://mbsharedteststor1.blob.core.windows.net/templates/2-tier-web-app-1/nested/",
+    "secondTemplate" : {
+      "templateUrl" : "[concat(variables('sharedBaseUrl'),'deploy-web-IIS.json')]",
+      "paramUrl" : "[concat(variables('sharedBaseUrl'),'deploy-web-IIS-parameters.json')]"
+    },
+    "thirdTemplate" : {
+      "templateUrl" : "[concat(variables('sharedBaseUrl'),'deploy-db.json')]",
+      "paramUrl" : "[concat(variables('sharedBaseUrl'),'deploy-db.parameters.json')]"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageAccountName')]",
+      "apiVersion": "[variables('apiVersion')]",
+      "location": "[variables('location')]",
+      "properties": {
+        "accountType": "[variables('storageAccountType')]"
+      }
+    },
+    {
+      "apiVersion": "[variables('apiVersion')]",
+      "type": "Microsoft.Network/virtualNetworks",
+      "name": "[variables('virtualNetworkName')]",
+      "location": "[variables('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('addressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnet1Name')]",
+            "properties": {
+              "addressPrefix": "[variables('subnet1Prefix')]"
+            }
+          },
+          {
+            "name": "[variables('subnet2Name')]",
+            "properties": {
+              "addressPrefix": "[variables('subnet2Prefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2015-01-01",
+      "name": "webserversLinked",
+      "type": "Microsoft.Resources/deployments",
+      "dependsOn": [
+        "[concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
+        "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('secondTemplate').templateUrl]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parametersLink": {
+          "uri": "[variables('secondTemplate').paramUrl]",
+          "contentVersion": "1.0.0.0"
+        }
+      }
+    },
+    {
+      "apiVersion": "2015-01-01",
+      "name": "dbserverLinked",
+      "type": "Microsoft.Resources/deployments",
+      "dependsOn": [
+        "[concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
+        "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('thirdTemplate').templateUrl]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parametersLink": {
+          "uri": "[variables('thirdTemplate').paramUrl]",
+          "contentVersion": "1.0.0.0"
+        }
+      }
+    }
+  ]
+}
